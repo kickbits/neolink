@@ -77,22 +77,22 @@ impl GstOutputs {
 
     fn apply_format(&self) {
         let launch_vid = match self.video_format {
-            Some(StreamFormat::H264) => "! queue ! h264parse ! rtph264pay name=pay0",
-            Some(StreamFormat::H265) => "! queue ! h265parse ! rtph265pay name=pay0",
+            Some(StreamFormat::H264) => "! queue silent=true ! h264parse ! rtph264pay name=pay0",
+            Some(StreamFormat::H265) => "! queue silent=true ! h265parse ! rtph265pay name=pay0",
             _ => "! fakesink",
         };
 
         let launch_aud = match self.audio_format {
-            Some(StreamFormat::AAC) => "! queue ! aacparse ! rtpmp4apay name=pay1",
-            Some(StreamFormat::ADPCM) => "! queue ! rawaudioparse format=0 num-channels=1 sample-rate=8000 ! audioconvert ! queue ! rtpL16pay name=pay1", // We decode as oki adpcm as raw before the appsink then payload to BigEndian for the rtp transport
+            Some(StreamFormat::AAC) => "! queue silent=true ! aacparse ! rtpmp4apay name=pay1",
+            Some(StreamFormat::ADPCM) => "! queue silent=true ! rawaudioparse format=0 num-channels=1 sample-rate=8000 ! audioconvert ! queue ! rtpL16pay name=pay1", // We decode as oki adpcm as raw before the appsink then payload to BigEndian for the rtp transport
             _ => "! fakesink",
         };
 
         self.factory.set_launch(&format!("{}{}{}{}{}{}",
             "( ",
-            "appsrc name=vidsrc is-live=true block=true emit-signals=false max-bytes=0 ",
+            "appsrc name=vidsrc is-live=true block=true emit-signals=false max-bytes=52428800 ", // 50MB max size so that it won't grow to infinite if the queue blocks
             launch_vid,
-            " appsrc name=audsrc is-live=true block=true emit-signals=false max-bytes=0 ",
+            " appsrc name=audsrc is-live=true block=true emit-signals=false max-bytes=52428800 ", // 50MB max size so that it won't grow to infinite if the queue blocks
             launch_aud,
             " )"
         ));
