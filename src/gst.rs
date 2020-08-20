@@ -313,7 +313,7 @@ mod maybe_app_src {
             {
                 let gst_buf_mut = gst_buf.get_mut().unwrap();
                 if let Some(timestamp) = timestamp {
-                    let clocktime = ClockTime::from_nseconds(timestamp);
+                    let clocktime = ClockTime::from_useconds(timestamp);
                     gst_buf_mut.set_pts(clocktime);
                     gst_buf_mut.set_dts(clocktime);
                 }
