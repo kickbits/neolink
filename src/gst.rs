@@ -4,6 +4,7 @@ pub use self::maybe_app_src::MaybeAppSrc;
 
 use gstreamer::prelude::Cast;
 use gstreamer::{Bin, Structure};
+use gstreamer::ClockTime;
 use gstreamer_app::AppSrc;
 //use gstreamer_rtsp::RTSPLowerTrans;
 use gio::{TlsAuthenticationMode, TlsCertificate};
@@ -95,6 +96,13 @@ impl GstOutputs {
             launch_aud,
             " )"
         ));
+    }
+
+    pub fn set_timestamp(&mut self, timestamp: Option<u64>) {
+        if timestamp.is_some() {
+            self.audsrc.set_timestamp(timestamp);
+            self.vidsrc.set_timestamp(timestamp);
+        }
     }
 }
 
@@ -256,6 +264,7 @@ mod maybe_app_src {
     pub struct MaybeAppSrc {
         rx: Receiver<AppSrc>,
         app_src: Option<AppSrc>,
+        timestamp: Option<u64>,
     }
 
     impl MaybeAppSrc {
@@ -264,7 +273,7 @@ mod maybe_app_src {
         /// into the AppSrc when write() is called.
         pub fn new_with_tx() -> (Self, SyncSender<AppSrc>) {
             let (tx, rx) = sync_channel(3); // The sender should not send very often
-            (MaybeAppSrc { rx, app_src: None }, tx)
+            (MaybeAppSrc { rx, app_src: None, timestamp: None }, tx)
         }
 
         /// Flushes data to Gstreamer on a problem communicating with the underlying video source.
@@ -285,11 +294,17 @@ mod maybe_app_src {
             }
             self.app_src.as_ref()
         }
+
+        pub fn set_timestamp(&mut self, timestamp: Option<u64>) {
+            self.timestamp = timestamp;
+        }
     }
 
     impl Write for MaybeAppSrc {
         fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
             // If we have no AppSrc yet, throw away the data and claim that it was written
+            let timestamp = self.timestamp; // Copy now before we do any mutable borrows
+
             let app_src = match self.try_get_src() {
                 Some(src) => src,
                 None => return Ok(buf.len()),
@@ -297,9 +312,14 @@ mod maybe_app_src {
             let mut gst_buf = gstreamer::Buffer::with_size(buf.len()).unwrap();
             {
                 let gst_buf_mut = gst_buf.get_mut().unwrap();
+                if let Some(timestamp) = timestamp {
+                    gst_buf_mut.set_pts(ClockTime::from_nseconds(timestamp));
+                }
+
                 let mut gst_buf_data = gst_buf_mut.map_writable().unwrap();
                 gst_buf_data.copy_from_slice(buf);
             }
+
             let res = app_src.push_buffer(gst_buf); //.map_err(|e| io::Error::new(io::ErrorKind::Other, Box::new(e)))?;
             if res.is_err() {
                 self.app_src = None;

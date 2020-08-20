@@ -284,6 +284,8 @@ impl BcCamera {
                 MediaDataKind::VideoDataIframe | MediaDataKind::VideoDataPframe => {
                     let media_format = binary_data.media_format();
                     data_outs.set_format(media_format);
+                    let timestamp = binary_data.timestamp();
+                    data_outs.set_timestamp(timestamp);
                     data_outs.vidsrc.write_all(binary_data.body())?;
                 },
                 MediaDataKind::AudioDataAac => {

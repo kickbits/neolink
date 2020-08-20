@@ -159,6 +159,16 @@ impl MediaData {
             _ => None,
         }
     }
+
+    pub fn timestamp(&self) -> Option<u64> {
+        let kind = self.kind();
+        match kind {
+            MediaDataKind::VideoDataIframe | MediaDataKind::VideoDataPframe => {
+                Some(Self::bytes_to_size(&self.data[16..20]).try_into().expect("usize wont fit into u64"))
+            }
+            _ => None,
+        }
+    }
 }
 
 pub struct MediaDataSubscriber<'a> {
