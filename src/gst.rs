@@ -90,9 +90,9 @@ impl GstOutputs {
 
         self.factory.set_launch(&format!("{}{}{}{}{}{}",
             "( ",
-            "appsrc name=vidsrc is-live=true block=true emit-signals=false max-bytes=0 do-timestamp=true ",
+            "appsrc name=vidsrc is-live=true block=true emit-signals=false max-bytes=0 ",
             launch_vid,
-            " appsrc name=audsrc is-live=true block=true emit-signals=false max-bytes=0 do-timestamp=true ",
+            " appsrc name=audsrc is-live=true block=true emit-signals=false max-bytes=0 ",
             launch_aud,
             " )"
         ));
@@ -313,7 +313,9 @@ mod maybe_app_src {
             {
                 let gst_buf_mut = gst_buf.get_mut().unwrap();
                 if let Some(timestamp) = timestamp {
-                    gst_buf_mut.set_pts(ClockTime::from_nseconds(timestamp));
+                    let clocktime = ClockTime::from_nseconds(timestamp);
+                    gst_buf_mut.set_pts(clocktime);
+                    gst_buf_mut.set_dts(clocktime);
                 }
 
                 let mut gst_buf_data = gst_buf_mut.map_writable().unwrap();
