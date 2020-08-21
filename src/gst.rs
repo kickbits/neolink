@@ -78,17 +78,17 @@ impl GstOutputs {
     fn apply_format(&self) {
         let launch_vid = match self.video_format {
             Some(StreamFormat::H264) => {
-                "!queue silent=true max-size-bytes=10485760 ! h264parse"
+                "! queue silent=true max-size-bytes=10485760 ! h264parse ! rtph264pay name=pay0"
             }
             Some(StreamFormat::H265) => {
-                "!queue silent=true  max-size-bytes=10485760 ! h265parse"
+                "! queue silent=true  max-size-bytes=10485760 ! h265parse ! rtph265pay name=pay0"
             }
             _ => "! fakesink",
         };
 
         let launch_aud = match self.audio_format {
-            Some(StreamFormat::AAC) => "! queue silent=true max-size-bytes=10485760 ! aacparse",
-            Some(StreamFormat::ADPCM) => "! queue silent=true max-size-bytes=10485760 ! wavparse ignore-length=true ! audiorate ! faac bitrate=48000 ! audio/mpeg,stream-format=adts ! aacparse", // We decode as oki adpcm to raw before the appsink then convert to aac for the muxing
+            Some(StreamFormat::ADPCM) => "! queue silent=true max-size-bytes=10485760 ! wavparse ignore-length=true ! audiorate ! audioconvert ! rtpL16pay name=pay1", // We decode as oki adpcm to raw before the appsink then convert to BigEndian for the rtp transport
+            Some(StreamFormat::AAC) => "! queue silent=true max-size-bytes=10485760 ! aacparse ! rtpmp4apay name=pay1",
             _ => "! fakesink",
         };
 
@@ -96,11 +96,8 @@ impl GstOutputs {
             "( ",
             "appsrc name=vidsrc is-live=true block=true emit-signals=false max-bytes=52428800", // 50MB max size so that it won't grow to infinite if the queue blocks
             launch_vid,
-            "! mux.",
             "appsrc name=audsrc is-live=true block=true emit-signals=false max-bytes=52428800", // 50MB max size so that it won't grow to infinite if the queue blocks
             launch_aud,
-            "! mux.",
-            "mpegtsmux name=mux ! rtpmp2tpay name=pay0",
             ")"
         ].join(" "));
     }
