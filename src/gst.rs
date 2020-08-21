@@ -78,16 +78,16 @@ impl GstOutputs {
     fn apply_format(&self) {
         let launch_vid = match self.video_format {
             Some(StreamFormat::H264) => {
-                "! queue silent=true max-size-bytes=10485760 ! h264parse ! rtph264pay name=pay0"
+                "! queue silent=true max-size-bytes=10485760 ! h264parse update-timecode=true config-interval=10 ! rtph264pay name=pay0"
             }
             Some(StreamFormat::H265) => {
-                "! queue silent=true  max-size-bytes=10485760 ! h265parse ! rtph265pay name=pay0"
+                "! queue silent=true  max-size-bytes=10485760 ! h265parse config-interval=10 ! rtph265pay name=pay0"
             }
             _ => "! fakesink",
         };
 
         let launch_aud = match self.audio_format {
-            Some(StreamFormat::ADPCM) => "! queue silent=true max-size-bytes=10485760 ! wavparse ignore-length=true ! audiorate ! audioconvert ! rtpL16pay name=pay1", // We decode as oki adpcm to raw before the appsink then convert to BigEndian for the rtp transport
+            Some(StreamFormat::ADPCM) => "caps=audio/x-raw,format=S16LE,layout=interleaved,channels=1,rate=8000 ! queue silent=true max-size-bytes=10485760 ! audiorate ! audioconvert ! rtpL16pay name=pay1", // We decode as oki adpcm to raw before the appsink then convert to BigEndian for the rtp transport
             Some(StreamFormat::AAC) => "! queue silent=true max-size-bytes=10485760 ! aacparse ! rtpmp4apay name=pay1",
             _ => "! fakesink",
         };
