@@ -13,7 +13,7 @@ use gstreamer_rtsp_server::prelude::*;
 use gstreamer_rtsp_server::{
     RTSPAuth, RTSPMediaFactory, RTSPServer as GstRTSPServer, RTSPToken,
     RTSP_PERM_MEDIA_FACTORY_ACCESS, RTSP_PERM_MEDIA_FACTORY_CONSTRUCT,
-    RTSP_TOKEN_MEDIA_FACTORY_ROLE,
+    RTSP_TOKEN_MEDIA_FACTORY_ROLE, RTSPPublishClockMode
 };
 use itertools::Itertools;
 use log::*;
@@ -148,9 +148,11 @@ impl RtspServer {
         self.add_permitted_roles(factory, permitted_users);
 
         factory.set_shared(true);
+        factory.set_publish_clock_mode(RTSPPublishClockMode::ClockAndOffset);
 
         factory.connect_media_configure(move |_factory, media| {
             debug!("RTSP: media was configured");
+            media.use_time_provider(true);
             let bin = media
                 .get_element()
                 .expect("Media should have an element")
@@ -265,6 +267,7 @@ mod maybe_app_src {
         rx: Receiver<AppSrc>,
         app_src: Option<AppSrc>,
         timestamp: Option<u64>,
+        basetime: Option<u64>,
     }
 
     impl MaybeAppSrc {
@@ -273,7 +276,7 @@ mod maybe_app_src {
         /// into the AppSrc when write() is called.
         pub fn new_with_tx() -> (Self, SyncSender<AppSrc>) {
             let (tx, rx) = sync_channel(3); // The sender should not send very often
-            (MaybeAppSrc { rx, app_src: None, timestamp: None }, tx)
+            (MaybeAppSrc { rx, app_src: None, timestamp: None, basetime:None }, tx)
         }
 
         /// Flushes data to Gstreamer on a problem communicating with the underlying video source.
@@ -297,23 +300,30 @@ mod maybe_app_src {
 
         pub fn set_timestamp(&mut self, timestamp: Option<u64>) {
             self.timestamp = timestamp;
+            if self.basetime.is_none() {
+                self.basetime = timestamp; // This is zero time
+            }
         }
     }
 
     impl Write for MaybeAppSrc {
         fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
             // If we have no AppSrc yet, throw away the data and claim that it was written
-            let timestamp = self.timestamp; // Copy now before we do any mutable borrows
-
             let app_src = match self.try_get_src() {
                 Some(src) => src,
                 None => return Ok(buf.len()),
             };
+
+            let pts = match (self.timestamp, self.basetime){
+                (Some(timestamp), Some(basetime))  => Some(timestamp-basetime),
+                _ => None,
+            };
+
             let mut gst_buf = gstreamer::Buffer::with_size(buf.len()).unwrap();
             {
                 let gst_buf_mut = gst_buf.get_mut().unwrap();
-                if let Some(timestamp) = timestamp {
-                    let clocktime = ClockTime::from_useconds(timestamp);
+                if let Some(pts) = pts {
+                    let clocktime = ClockTime::from_useconds(pts);
                     gst_buf_mut.set_pts(clocktime);
                     gst_buf_mut.set_dts(clocktime);
                 }
