@@ -4,27 +4,29 @@
 use std::convert::TryInto;
 
 struct AdpcmSetup {
-  max_step_index: usize,
-  steps: Vec<usize>,
-  max_sample_size: isize,
-  changes: Vec<isize>,
+    max_step_index: usize,
+    steps: Vec<usize>,
+    max_sample_size: isize,
+    changes: Vec<isize>,
 }
 
 impl AdpcmSetup {
     fn new_oki() -> Self {
-        Self{
+        Self {
             max_step_index: 48,
-            steps: vec![16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45,
-                        50, 55, 60, 66, 73, 80, 88, 97, 107, 118, 130, 143,
-                        157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449,
-                        494, 544, 598, 658, 724, 796, 876, 963, 1060, 1166, 1282, 1411, 1552],
+            steps: vec![
+                16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97,
+                107, 118, 130, 143, 157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449,
+                494, 544, 598, 658, 724, 796, 876, 963, 1060, 1166, 1282, 1411, 1552,
+            ],
             changes: vec![-1, -1, -1, -1, 2, 4, 6, 8, -1, -1, -1, -1, 2, 4, 6, 8],
             max_sample_size: 2048,
         }
     }
 }
 
-struct Nibble { // A nibble is a 4bit int
+struct Nibble {
+    // A nibble is a 4bit int
     data: u8, // This is the raw data for the nibble
 }
 
@@ -36,24 +38,26 @@ impl Nibble {
     }
 
     fn signed_magnitude(&self) -> usize {
-        (self.data & 0b00000111) as usize  // Mask of first 3 bits which are the magnitiude bits in signed int
+        (self.data & 0b00000111) as usize // Mask of first 3 bits which are the magnitiude bits in signed int
     }
 
     fn signed(&self) -> isize {
-        match self.data & 0b00001000  { // Sign bit is at the 4th bit
+        match self.data & 0b00001000 {
+            // Sign bit is at the 4th bit
             0b00001000 => -(self.signed_magnitude() as isize),
             _ => self.signed_magnitude() as isize,
         }
     }
 
-    fn from_byte(byte: &u8) -> [Self; 2] { // Two nibbles per byte
+    fn from_byte(byte: &u8) -> [Self; 2] {
+        // Two nibbles per byte
         [
-            Self{
+            Self {
                 data: byte & 0b00001111,
             },
-            Self{
+            Self {
                 data: (byte & 0b11110000) >> 4,
-            }
+            },
         ]
     }
 }
@@ -78,13 +82,25 @@ pub fn oki_to_pcm(bytes: &[u8]) -> Vec<u8> {
     // Check for valid magic panic if not
     const OKI_MAGIC: &[u8] = &[0x00, 0x01, 0x7A, 0x00];
     let magic = &bytes[0..4];
-    assert!(magic == OKI_MAGIC, "Unexpected oki magic code {:x?}", &magic);
+    assert!(
+        magic == OKI_MAGIC,
+        "Unexpected oki magic code {:x?}",
+        &magic
+    );
 
     // Get the cached intermediate variables from the subheader
     let last_output_byes = &bytes[4..6];
     let step_index_bytes = &bytes[6..8];
-    let mut step_index: isize = u16::from_le_bytes(step_index_bytes.try_into().expect("slice with incorrect length")) as isize; // Index is inti to 16 in oki
-    let mut last_output: isize = i16::from_le_bytes(last_output_byes.try_into().expect("slice with incorrect length")) as isize;  // PCM is i16, init to 0 in oki
+    let mut step_index: isize = u16::from_le_bytes(
+        step_index_bytes
+            .try_into()
+            .expect("slice with incorrect length"),
+    ) as isize; // Index is inti to 16 in oki
+    let mut last_output: isize = i16::from_le_bytes(
+        last_output_byes
+            .try_into()
+            .expect("slice with incorrect length"),
+    ) as isize; // PCM is i16, init to 0 in oki
     let mut step: usize;
 
     // The rest is all data to be decoded
@@ -111,7 +127,7 @@ pub fn oki_to_pcm(bytes: &[u8]) -> Vec<u8> {
             // Calculate the delta (which is really what adpcm is all about)
             // Adaptive **Differential** PCM
             // Differential: Becuase its all about the difference (gradient)
-            let diff = (step as isize) * (inibble) /2 + (step as isize) /8;
+            let diff = (step as isize) * (inibble) / 2 + (step as isize) / 8;
 
             // Eulers approxiation
             // Sample = Previous_Sample + difference*step_size
@@ -128,7 +144,8 @@ pub fn oki_to_pcm(bytes: &[u8]) -> Vec<u8> {
             // OKI has an upper limit of i15....
             // To convert we must scale it to the i16 range
             // We also cast to i16 at this point ready for the conversion to u8 bytes of the output
-            let scaled_sample = (sample as isize * (i16::MAX as isize) / oki_context.max_sample_size as isize) as i16;
+            let scaled_sample = (sample as isize * (i16::MAX as isize)
+                / oki_context.max_sample_size as isize) as i16;
 
             // Get the results in bytes
             result.extend(scaled_sample.to_le_bytes().iter());
@@ -139,7 +156,7 @@ pub fn oki_to_pcm(bytes: &[u8]) -> Vec<u8> {
             // Increment the step index
             step_index = step_index as isize + oki_context.changes[unibble];
         }
-    };
+    }
 
     result
 }

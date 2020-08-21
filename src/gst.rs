@@ -3,17 +3,17 @@
 pub use self::maybe_app_src::MaybeAppSrc;
 
 use gstreamer::prelude::Cast;
-use gstreamer::{Bin, Structure};
 use gstreamer::ClockTime;
+use gstreamer::{Bin, Structure};
 use gstreamer_app::AppSrc;
 //use gstreamer_rtsp::RTSPLowerTrans;
 use gio::{TlsAuthenticationMode, TlsCertificate};
 use gstreamer_rtsp::RTSPAuthMethod;
 use gstreamer_rtsp_server::prelude::*;
 use gstreamer_rtsp_server::{
-    RTSPAuth, RTSPMediaFactory, RTSPServer as GstRTSPServer, RTSPToken,
+    RTSPAuth, RTSPMediaFactory, RTSPPublishClockMode, RTSPServer as GstRTSPServer, RTSPToken,
     RTSP_PERM_MEDIA_FACTORY_ACCESS, RTSP_PERM_MEDIA_FACTORY_CONSTRUCT,
-    RTSP_TOKEN_MEDIA_FACTORY_ROLE, RTSPPublishClockMode
+    RTSP_TOKEN_MEDIA_FACTORY_ROLE,
 };
 use itertools::Itertools;
 use log::*;
@@ -46,7 +46,7 @@ pub struct GstOutputs {
 
 impl GstOutputs {
     pub fn from_appsrcs(vidsrc: MaybeAppSrc, audsrc: MaybeAppSrc) -> GstOutputs {
-        let result = GstOutputs{
+        let result = GstOutputs {
             vidsrc,
             audsrc,
             video_format: None,
@@ -77,8 +77,12 @@ impl GstOutputs {
 
     fn apply_format(&self) {
         let launch_vid = match self.video_format {
-            Some(StreamFormat::H264) => "! queue silent=true max-size-bytes=10485760 ! h264parse ! rtph264pay name=pay0",
-            Some(StreamFormat::H265) => "! queue silent=true  max-size-bytes=10485760 ! h265parse ! rtph265pay name=pay0",
+            Some(StreamFormat::H264) => {
+                "! queue silent=true max-size-bytes=10485760 ! h264parse ! rtph264pay name=pay0"
+            }
+            Some(StreamFormat::H265) => {
+                "! queue silent=true  max-size-bytes=10485760 ! h265parse ! rtph265pay name=pay0"
+            }
             _ => "! fakesink",
         };
 
@@ -88,7 +92,8 @@ impl GstOutputs {
             _ => "! fakesink",
         };
 
-        self.factory.set_launch(&format!("{}{}{}{}{}{}",
+        self.factory.set_launch(&format!(
+            "{}{}{}{}{}{}",
             "( ",
             "appsrc name=vidsrc is-live=true block=true emit-signals=false max-bytes=52428800 ", // 50MB max size so that it won't grow to infinite if the queue blocks
             launch_vid,
@@ -276,7 +281,15 @@ mod maybe_app_src {
         /// into the AppSrc when write() is called.
         pub fn new_with_tx() -> (Self, SyncSender<AppSrc>) {
             let (tx, rx) = sync_channel(3); // The sender should not send very often
-            (MaybeAppSrc { rx, app_src: None, timestamp: None, basetime:None }, tx)
+            (
+                MaybeAppSrc {
+                    rx,
+                    app_src: None,
+                    timestamp: None,
+                    basetime: None,
+                },
+                tx,
+            )
         }
 
         /// Flushes data to Gstreamer on a problem communicating with the underlying video source.
@@ -314,8 +327,8 @@ mod maybe_app_src {
                 None => return Ok(buf.len()),
             };
 
-            let pts = match (self.timestamp, self.basetime){
-                (Some(timestamp), Some(basetime))  => Some(timestamp-basetime),
+            let pts = match (self.timestamp, self.basetime) {
+                (Some(timestamp), Some(basetime)) => Some(timestamp - basetime),
                 _ => None,
             };
 

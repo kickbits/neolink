@@ -8,9 +8,7 @@ use std::collections::VecDeque;
 use std::convert::TryInto;
 use std::time::Duration;
 
-const INVALID_MEDIA_PACKETS: &[MediaDataKind] = &[
-    MediaDataKind::Unknown,
-];
+const INVALID_MEDIA_PACKETS: &[MediaDataKind] = &[MediaDataKind::Unknown];
 
 // MAGIC_SIZE: Number of bytes needed to get magic header type, represets minimum bytes to pull from the
 // stream
@@ -74,27 +72,27 @@ impl MediaData {
         for four in self.header().chunks(4) {
             result.push(u32::from_le_bytes(four.try_into().unwrap()));
         }
-        info!("{:?}-32: {:?}", self.kind(),result);
+        info!("{:?}-32: {:?}", self.kind(), result);
         let mut result = vec![];
         for two in self.header().chunks(2) {
             result.push(u16::from_le_bytes(two.try_into().unwrap()));
         }
-        info!("{:?}-16: {:?}", self.kind(),result);
+        info!("{:?}-16: {:?}", self.kind(), result);
         let mut result = vec![];
         for one in self.header().chunks(1) {
             result.push(u8::from_le_bytes(one.try_into().unwrap()));
         }
-        info!("{:?}-8: {:?}", self.kind(),result);
+        info!("{:?}-8: {:?}", self.kind(), result);
         let mut result = vec![];
         for four in self.header().chunks(4) {
             result.push(f32::from_le_bytes(four.try_into().unwrap()));
         }
-        info!("{:?}-f32: {:?}", self.kind(),result);
+        info!("{:?}-f32: {:?}", self.kind(), result);
         let mut result = vec![];
         for four in self.header().chunks(4) {
             result.push(String::from_utf8_lossy(four));
         }
-        info!("{:?}-utf8: {:?}", self.kind(),result);
+        info!("{:?}-utf8: {:?}", self.kind(), result);
     }
 
     fn header_size(&self) -> usize {
@@ -146,7 +144,10 @@ impl MediaData {
         // Else full_header_check_from_kind will fail because we check the
         // First two bytes after the header for the audio stream
         // Since AAC and ADMPC streams start in a predicatble manner
-        assert!(data.len() >= MAGIC_SIZE, "At least four bytes needed to get media packet type");
+        assert!(
+            data.len() >= MAGIC_SIZE,
+            "At least four bytes needed to get media packet type"
+        );
         const MAGIC_VIDEO_INFO_V1: &[u8] = &[0x31, 0x30, 0x30, 0x31];
         const MAGIC_VIDEO_INFO_V2: &[u8] = &[0x31, 0x30, 0x30, 0x32];
         const MAGIC_AAC: &[u8] = &[0x30, 0x35, 0x77, 0x62];
@@ -196,9 +197,11 @@ impl MediaData {
     pub fn timestamp(&self) -> Option<u64> {
         let kind = self.kind();
         match kind {
-            MediaDataKind::VideoDataIframe | MediaDataKind::VideoDataPframe => {
-                Some(Self::bytes_to_size(&self.data[16..20]).try_into().expect("usize wont fit into u64"))
-            }
+            MediaDataKind::VideoDataIframe | MediaDataKind::VideoDataPframe => Some(
+                Self::bytes_to_size(&self.data[16..20])
+                    .try_into()
+                    .expect("usize wont fit into u64"),
+            ),
             _ => None,
         }
     }
@@ -242,8 +245,7 @@ impl<'a> MediaDataSubscriber<'a> {
         }
 
         // Check the kind, if its invalid use pop a byte and try again
-        let mut magic =
-            MediaDataSubscriber::get_first_n_deque(&self.binary_buffer, MAGIC_SIZE);
+        let mut magic = MediaDataSubscriber::get_first_n_deque(&self.binary_buffer, MAGIC_SIZE);
         if INVALID_MEDIA_PACKETS.contains(&MediaData::kind_from_raw(&magic)) {
             warn!("Possibly truncated packet or unknown magic in stream");
             trace!("Unknown magic was: {:x?}", &magic);

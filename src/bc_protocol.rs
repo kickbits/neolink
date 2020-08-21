@@ -1,22 +1,22 @@
 use self::connection::BcConnection;
 use self::media_packet::{MediaDataKind, MediaDataSubscriber};
-use crate::gst::GstOutputs;
 use crate::bc;
 use crate::bc::{model::*, xml::*};
+use crate::gst::GstOutputs;
+use adpcm::oki_to_pcm;
 use err_derive::Error;
 use log::*;
 use md5;
-use adpcm::oki_to_pcm;
 use std::io::Write;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::time::Duration;
 
 use Md5Trunc::*;
 
+mod adpcm;
 mod connection;
 mod media_packet;
 mod time;
-mod adpcm;
 
 pub struct BcCamera {
     address: SocketAddr,
@@ -287,12 +287,12 @@ impl BcCamera {
                     let timestamp = binary_data.timestamp();
                     data_outs.set_timestamp(timestamp);
                     data_outs.vidsrc.write_all(binary_data.body())?;
-                },
+                }
                 MediaDataKind::AudioDataAac => {
                     let media_format = binary_data.media_format();
                     data_outs.set_format(media_format);
                     data_outs.audsrc.write_all(binary_data.body())?;
-                },
+                }
                 MediaDataKind::AudioDataAdpcm => {
                     let media_format = binary_data.media_format();
                     data_outs.set_format(media_format);
