@@ -3,7 +3,7 @@ use self::media_packet::{MediaDataKind, MediaDataSubscriber};
 use crate::bc;
 use crate::bc::{model::*, xml::*};
 use crate::gst::GstOutputs;
-use adpcm::oki_to_pcm_wave;
+use adpcm::{oki_to_pcm, WAV_HEADER};
 use err_derive::Error;
 use log::*;
 use md5;
@@ -275,7 +275,7 @@ impl BcCamera {
         sub_video.send(start_video)?;
 
         let mut media_sub = MediaDataSubscriber::from_bc_sub(&sub_video);
-
+        let mut sent_wavheader = false;
         loop {
             let binary_data = media_sub.next_media_packet(RX_TIMEOUT)?;
             // We now have a complete interesting packet. Send it to gst.
@@ -297,8 +297,16 @@ impl BcCamera {
                     let media_format = binary_data.media_format();
                     data_outs.set_format(media_format);
                     let oki_adpcm = binary_data.body();
-                    let pcm_wav = oki_to_pcm_wave(oki_adpcm);
-                    data_outs.audsrc.write_all(&pcm_wav)?;
+                    let pcm;
+                    if ! sent_wavheader {
+                        sent_wavheader = true;
+                        // There may be a better way then a copy op...
+                        pcm = WAV_HEADER.iter().copied().chain(oki_to_pcm(oki_adpcm).iter().copied()).collect();
+                    } else {
+                        pcm = oki_to_pcm(oki_adpcm);
+                    }
+
+                    data_outs.audsrc.write_all(&pcm)?;
                 }
                 _ => {}
             };
