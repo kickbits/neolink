@@ -321,15 +321,15 @@ mod maybe_app_src {
 
     impl Write for MaybeAppSrc {
         fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            let pts = match (self.timestamp, self.basetime) {
+                (Some(timestamp), Some(basetime)) => Some(timestamp - basetime),
+                _ => None,
+            };
+            
             // If we have no AppSrc yet, throw away the data and claim that it was written
             let app_src = match self.try_get_src() {
                 Some(src) => src,
                 None => return Ok(buf.len()),
-            };
-
-            let pts = match (self.timestamp, self.basetime) {
-                (Some(timestamp), Some(basetime)) => Some(timestamp - basetime),
-                _ => None,
             };
 
             let mut gst_buf = gstreamer::Buffer::with_size(buf.len()).unwrap();
