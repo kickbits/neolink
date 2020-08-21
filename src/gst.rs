@@ -88,7 +88,7 @@ impl GstOutputs {
 
         let launch_aud = match self.audio_format {
             Some(StreamFormat::AAC) => "! queue silent=true max-size-bytes=10485760 ! aacparse",
-            Some(StreamFormat::ADPCM) => "! queue silent=true max-size-bytes=10485760 ! rawaudioparse format=pcm pcm-format=s16le num-channels=1 sample-rate=8000 ! audiorate ! faac ! audio/mpeg,stream-format=adts ! aacparse", // We decode as oki adpcm to raw before the appsink then convert to aac for the muxing
+            Some(StreamFormat::ADPCM) => "! queue silent=true max-size-bytes=10485760 ! wavparse ignore-length=true ! audiorate ! faac bitrate=48000 ! audio/mpeg,stream-format=adts ! aacparse", // We decode as oki adpcm to raw before the appsink then convert to aac for the muxing
             _ => "! fakesink",
         };
 

@@ -3,7 +3,7 @@ use self::media_packet::{MediaDataKind, MediaDataSubscriber};
 use crate::bc;
 use crate::bc::{model::*, xml::*};
 use crate::gst::GstOutputs;
-use adpcm::oki_to_pcm;
+use adpcm::oki_to_pcm_wave;
 use err_derive::Error;
 use log::*;
 use md5;
@@ -297,8 +297,8 @@ impl BcCamera {
                     let media_format = binary_data.media_format();
                     data_outs.set_format(media_format);
                     let oki_adpcm = binary_data.body();
-                    let pcm = oki_to_pcm(oki_adpcm);
-                    data_outs.audsrc.write_all(&pcm)?;
+                    let pcm_wav = oki_to_pcm_wave(oki_adpcm);
+                    data_outs.audsrc.write_all(&pcm_wav)?;
                 }
                 _ => {}
             };
