@@ -78,29 +78,31 @@ impl GstOutputs {
     fn apply_format(&self) {
         let launch_vid = match self.video_format {
             Some(StreamFormat::H264) => {
-                "! queue silent=true max-size-bytes=10485760 ! h264parse ! rtph264pay name=pay0"
+                "!queue silent=true max-size-bytes=10485760 ! h264parse"
             }
             Some(StreamFormat::H265) => {
-                "! queue silent=true  max-size-bytes=10485760 ! h265parse ! rtph265pay name=pay0"
+                "!queue silent=true  max-size-bytes=10485760 ! h265parse"
             }
             _ => "! fakesink",
         };
 
         let launch_aud = match self.audio_format {
-            Some(StreamFormat::AAC) => "! queue silent=true max-size-bytes=10485760 ! aacparse ! rtpmp4apay name=pay1",
-            Some(StreamFormat::ADPCM) => "! queue silent=true max-size-bytes=10485760 ! rawaudioparse format=pcm pcm-format=s16le num-channels=1 sample-rate=8000 ! audiorate ! audioconvert ! rtpL16pay name=pay1", // We decode as oki adpcm to raw before the appsink then convert to BigEndian for the rtp transport
+            Some(StreamFormat::AAC) => "! queue silent=true max-size-bytes=10485760 ! aacparse",
+            Some(StreamFormat::ADPCM) => "! queue silent=true max-size-bytes=10485760 ! rawaudioparse format=pcm pcm-format=s16le num-channels=1 sample-rate=8000 ! audiorate ! faac ! audio/mpeg,stream-format=adts ! aacparse", // We decode as oki adpcm to raw before the appsink then convert to aac for the muxing
             _ => "! fakesink",
         };
 
-        self.factory.set_launch(&format!(
-            "{}{}{}{}{}{}",
+        self.factory.set_launch(&vec![
             "( ",
-            "appsrc name=vidsrc is-live=true block=true emit-signals=false max-bytes=52428800 ", // 50MB max size so that it won't grow to infinite if the queue blocks
+            "appsrc name=vidsrc is-live=true block=true emit-signals=false max-bytes=52428800", // 50MB max size so that it won't grow to infinite if the queue blocks
             launch_vid,
-            " appsrc name=audsrc is-live=true block=true emit-signals=false max-bytes=52428800 ", // 50MB max size so that it won't grow to infinite if the queue blocks
+            "! mux.",
+            "appsrc name=audsrc is-live=true block=true emit-signals=false max-bytes=52428800", // 50MB max size so that it won't grow to infinite if the queue blocks
             launch_aud,
-            " )"
-        ));
+            "! mux.",
+            "mpegtsmux name=mux ! rtpmp2tpay name=pay0",
+            ")"
+        ].join(" "));
     }
 
     pub fn set_timestamp(&mut self, timestamp: Option<u64>) {
@@ -325,7 +327,7 @@ mod maybe_app_src {
                 (Some(timestamp), Some(basetime)) => Some(timestamp - basetime),
                 _ => None,
             };
-            
+
             // If we have no AppSrc yet, throw away the data and claim that it was written
             let app_src = match self.try_get_src() {
                 Some(src) => src,
