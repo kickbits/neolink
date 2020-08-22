@@ -78,6 +78,10 @@ impl GstOutputs {
     fn apply_format(&self) {
         let launch_vid = match self.video_format {
             Some(StreamFormat::H264) => {
+                // My E1 camera has a full caps of video/x-h264, width=(int)896, height=(int)512, framerate=(fraction)0/1, chroma-format=(string)4:2:0, bit-depth-luma=(uint)8, bit-depth-chroma=(uint)8, parsed=(boolean)true, stream-format=(string)avc, alignment=(string)au, profile=(string)high, level=(string)5.1, codec_data=(buffer)01640033ffe1000a67640033ace80e01064001000468ee3cb0
+                // The h264payloader only requires video/x-h264,stream-format=avc,alignment=au
+                // I can set this in the caps field of the appsrc and skip the h264parse
+                // However, although I can payload using the minimum caps it is not properly recieved on the other end without a full parse and will not play.
                 "! queue silent=true max-size-bytes=10485760 ! h264parse"
             }
             Some(StreamFormat::H265) => {
@@ -91,7 +95,9 @@ impl GstOutputs {
             // This is required as the rawaudioparse in gstramer seems to be bugged for live sources
             // See https://gitlab.freedesktop.org/gstreamer/gst-plugins-base/-/issues/353
             Some(StreamFormat::ADPCM) => "caps=audio/x-raw,format=S16LE,layout=interleaved,channels=1,rate=8000,channel-mask=(bitmask)0x0 ! queue silent=true max-size-bytes=10485760 min-threshold-bytes=10", // We decode as oki adpcm to raw before the appsink then convert to BigEndian for the rtp transport
-            Some(StreamFormat::AAC) => "! queue silent=true max-size-bytes=10485760 min-threshold-bytes=10 ! aacparse",
+            // My E1 camera has a full caps of audio/mpeg, framed=(boolean)true, mpegversion=(int)4, level=(string)1, base-profile=(string)lc, profile=(string)lc, rate=(int)16000, channels=(int)1, stream-format=(string)raw, codec_data=(buffer)1408
+            // But only caps=audio/mpeg,mpegversion=4,stream-format=raw are required by the payloader
+            Some(StreamFormat::AAC) => "caps=audio/mpeg,mpegversion=4,stream-format=raw ! queue silent=true max-size-bytes=10485760 min-threshold-bytes=10",
             _ => "! fakesink",
         };
 
