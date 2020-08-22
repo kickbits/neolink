@@ -315,6 +315,11 @@ mod maybe_app_src {
         fn try_get_src(&mut self) -> Option<&AppSrc> {
             while let Some(src) = self.rx.try_recv().ok() {
                 self.app_src = Some(src);
+                // When we recieve a new media it means we have a new client we need to reset
+                // The basetime, else we will send them frames marked as furture frames which
+                // May cause issues for some players that will wait until the play time equals
+                // that given in the stream
+                self.basetime = None;
             }
             self.app_src.as_ref()
         }
@@ -322,6 +327,7 @@ mod maybe_app_src {
         pub fn set_timestamp(&mut self, timestamp: Option<u64>) {
             self.timestamp = timestamp;
             if self.basetime.is_none() {
+                debug!("Resetting basetime to: {}", timestamp.unwrap());
                 self.basetime = timestamp; // This is zero time
             }
         }
