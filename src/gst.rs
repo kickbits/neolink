@@ -1,9 +1,7 @@
 //! This module provides an "RtspServer" abstraction that allows consumers of its API to feed it
 //! data using an ordinary std::io::Write interface.
 pub use self::maybe_app_src::MaybeAppSrc;
-
 use gstreamer::prelude::Cast;
-use gstreamer::ClockTime;
 use gstreamer::{Bin, Structure};
 use gstreamer_app::AppSrc;
 //use gstreamer_rtsp::RTSPLowerTrans;
@@ -78,7 +76,7 @@ impl GstOutputs {
     fn apply_format(&self) {
         let launch_vid = match self.video_format {
             Some(StreamFormat::H264) => {
-                "! queue silent=true max-size-bytes=10485760  min-threshold-bytes=1024 ! h264parse update-timecode=true ! rtph264pay name=pay0"
+                "! queue silent=true max-size-bytes=10485760  min-threshold-bytes=1024 ! h264parse ! rtph264pay name=pay0"
             }
             Some(StreamFormat::H265) => {
                 "! queue silent=true  max-size-bytes=10485760  min-threshold-bytes=1024 ! h265parse ! rtph265pay name=pay0"
@@ -97,19 +95,12 @@ impl GstOutputs {
 
         self.factory.set_launch(&vec![
             "( ",
-            "appsrc name=vidsrc is-live=true block=true emit-signals=false max-bytes=52428800 format=GST_FORMAT_TIME ", // 50MB max size so that it won't grow to infinite if the queue blocks
+            "appsrc name=vidsrc is-live=true block=true emit-signals=false max-bytes=52428800 do-timestamp=true format=GST_FORMAT_TIME", // 50MB max size so that it won't grow to infinite if the queue blocks
             launch_vid,
-            "appsrc name=audsrc is-live=true block=true emit-signals=false max-bytes=52428800 format=GST_FORMAT_TIME ", // 50MB max size so that it won't grow to infinite if the queue blocks
+            "appsrc name=audsrc is-live=true block=true emit-signals=false max-bytes=52428800 do-timestamp=true format=GST_FORMAT_TIME", // 50MB max size so that it won't grow to infinite if the queue blocks
             launch_aud,
             ")"
         ].join(" "));
-    }
-
-    pub fn set_timestamp(&mut self, timestamp: Option<u64>) {
-        if timestamp.is_some() {
-            self.audsrc.set_timestamp(timestamp);
-            self.vidsrc.set_timestamp(timestamp);
-        }
     }
 }
 
@@ -273,8 +264,6 @@ mod maybe_app_src {
     pub struct MaybeAppSrc {
         rx: Receiver<AppSrc>,
         app_src: Option<AppSrc>,
-        timestamp: Option<u64>,
-        basetime: Option<u64>,
     }
 
     impl MaybeAppSrc {
@@ -287,8 +276,6 @@ mod maybe_app_src {
                 MaybeAppSrc {
                     rx,
                     app_src: None,
-                    timestamp: None,
-                    basetime: None,
                 },
                 tx,
             )
@@ -309,31 +296,13 @@ mod maybe_app_src {
         fn try_get_src(&mut self) -> Option<&AppSrc> {
             while let Some(src) = self.rx.try_recv().ok() {
                 self.app_src = Some(src);
-                // When we recieve a new media it means we have a new client we need to reset
-                // The basetime, else we will send them frames marked as furture frames which
-                // May cause issues for some players that will wait until the play time equals
-                // that given in the stream
-                self.basetime = None;
             }
             self.app_src.as_ref()
-        }
-
-        pub fn set_timestamp(&mut self, timestamp: Option<u64>) {
-            self.timestamp = timestamp;
-            if self.basetime.is_none() {
-                debug!("Resetting basetime to: {}", timestamp.unwrap());
-                self.basetime = timestamp; // This is zero time
-            }
         }
     }
 
     impl Write for MaybeAppSrc {
         fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-            let pts = match (self.timestamp, self.basetime) {
-                (Some(timestamp), Some(basetime)) => Some(timestamp - basetime),
-                _ => None,
-            };
-
             // If we have no AppSrc yet, throw away the data and claim that it was written
             let app_src = match self.try_get_src() {
                 Some(src) => src,
@@ -343,12 +312,6 @@ mod maybe_app_src {
             let mut gst_buf = gstreamer::Buffer::with_size(buf.len()).unwrap();
             {
                 let gst_buf_mut = gst_buf.get_mut().unwrap();
-                if let Some(pts) = pts {
-                    let clocktime = ClockTime::from_useconds(pts);
-                    gst_buf_mut.set_pts(clocktime);
-                    gst_buf_mut.set_dts(clocktime);
-                }
-
                 let mut gst_buf_data = gst_buf_mut.map_writable().unwrap();
                 gst_buf_data.copy_from_slice(buf);
             }
