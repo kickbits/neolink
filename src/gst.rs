@@ -82,10 +82,10 @@ impl GstOutputs {
                 // The h264payloader only requires video/x-h264,stream-format=avc,alignment=au
                 // I can set this in the caps field of the appsrc and skip the h264parse
                 // However, although I can payload using the minimum caps it is not properly recieved on the other end without a full parse and will not play.
-                "! queue silent=true max-size-bytes=10485760 ! h264parse"
+                "format=GST_FORMAT_TIME ! queue silent=true max-size-bytes=10485760 ! h264parse ! rtph264pay name=pay0"
             }
             Some(StreamFormat::H265) => {
-                "! queue silent=true  max-size-bytes=10485760 ! h265parse"
+                "format=GST_FORMAT_TIME ! queue silent=true  max-size-bytes=10485760 ! h265parse ! rtph265pay name=pay0"
             }
             _ => "! fakesink",
         };
@@ -94,22 +94,19 @@ impl GstOutputs {
             // We set the caps for the pcm here to avoid the parser entirly.
             // This is required as the rawaudioparse in gstramer seems to be bugged for live sources
             // See https://gitlab.freedesktop.org/gstreamer/gst-plugins-base/-/issues/353
-            Some(StreamFormat::ADPCM) => "caps=audio/x-raw,format=S16LE,layout=interleaved,channels=1,rate=8000,channel-mask=(bitmask)0x0 ! queue silent=true max-size-bytes=10485760 min-threshold-bytes=10", // We decode as oki adpcm to raw before the appsink then convert to BigEndian for the rtp transport
+            Some(StreamFormat::ADPCM) => "format=GST_FORMAT_TIME caps=audio/x-raw,format=S16LE,layout=interleaved,channels=1,rate=8000 ! queue silent=true max-size-bytes=10485760 min-threshold-bytes=10 ! audiorate ! audioconvert ! rtpL16pay name=pay1", // We decode as oki adpcm to raw before the appsink then convert to BigEndian for the rtp transport
             // My E1 camera has a full caps of audio/mpeg, framed=(boolean)true, mpegversion=(int)4, level=(string)1, base-profile=(string)lc, profile=(string)lc, rate=(int)16000, channels=(int)1, stream-format=(string)raw, codec_data=(buffer)1408
             // But only caps=audio/mpeg,mpegversion=4,stream-format=raw are required by the payloader
-            Some(StreamFormat::AAC) => "caps=audio/mpeg,mpegversion=4,stream-format=raw ! queue silent=true max-size-bytes=10485760 min-threshold-bytes=10",
+            Some(StreamFormat::AAC) => "format=GST_FORMAT_TIME caps=audio/mpeg,mpegversion=4,stream-format=raw ! queue silent=true max-size-bytes=10485760 min-threshold-bytes=10 ! rtpmp4apay name=pay1",
             _ => "! fakesink",
         };
 
         self.factory.set_launch(&vec![
             "( ",
-            "appsrc name=vidsrc is-live=true block=true emit-signals=false max-bytes=52428800 format=GST_FORMAT_TIME ", // 50MB max size so that it won't grow to infinite if the queue blocks
+            "appsrc name=vidsrc is-live=true block=true emit-signals=false max-bytes=52428800", // 50MB max size so that it won't grow to infinite if the queue blocks
             launch_vid,
-            "! mux.",
-            "appsrc name=audsrc is-live=true block=true emit-signals=false max-bytes=52428800 format=GST_FORMAT_TIME ", // 50MB max size so that it won't grow to infinite if the queue blocks
+            "appsrc name=audsrc is-live=true block=true emit-signals=false max-bytes=52428800", // 50MB max size so that it won't grow to infinite if the queue blocks
             launch_aud,
-            "! mux.",
-            "mpegtsmux name=mux ! rtpmp2tpay name=pay0",
             ")"
         ].join(" "));
     }
