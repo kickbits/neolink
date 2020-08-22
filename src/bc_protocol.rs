@@ -53,9 +53,6 @@ pub enum Error {
     #[error(display = "Timeout")]
     Timeout(#[error(source)] std::sync::mpsc::RecvTimeoutError),
 
-    #[error(display = "Media")]
-    MediaPacket(#[error(source)] self::media_packet::Error),
-
     #[error(display = "Credential error")]
     AuthFailed,
 
@@ -277,7 +274,7 @@ impl BcCamera {
         let mut media_sub = MediaDataSubscriber::from_bc_sub(&sub_video);
 
         loop {
-            let binary_data = media_sub.next_media_packet(RX_TIMEOUT)?;
+            let binary_data = media_sub.next_media_packet()?;
             // We now have a complete interesting packet. Send it to gst.
             // Process the packet
             match binary_data.kind() {
