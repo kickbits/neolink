@@ -3,7 +3,7 @@ use self::media_packet::{MediaDataKind, MediaDataSubscriber};
 use crate::bc;
 use crate::bc::{model::*, xml::*};
 use crate::gst::GstOutputs;
-use adpcm::{oki_to_pcm, WAV_HEADER};
+use adpcm::oki_to_pcm;
 use err_derive::Error;
 use log::*;
 use md5;
