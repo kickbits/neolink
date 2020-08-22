@@ -82,10 +82,10 @@ impl GstOutputs {
                 // The h264payloader only requires video/x-h264,stream-format=avc,alignment=au
                 // I can set this in the caps field of the appsrc and skip the h264parse
                 // However, although I can payload using the minimum caps it is not properly recieved on the other end without a full parse and will not play.
-                "format=GST_FORMAT_TIME ! queue silent=true max-size-bytes=10485760 min-threshold-bytes=10 ! h264parse ! rtph264pay config-interval=-1 name=pay0"
+                "format=GST_FORMAT_TIME ! queue silent=true max-size-bytes=10485760 ! h264parse ! rtph264pay name=pay0"
             }
             Some(StreamFormat::H265) => {
-                "format=GST_FORMAT_TIME ! queue silent=true  max-size-bytes=10485760 min-threshold-bytes=10 ! h265parse config-interval=10 ! rtph265pay name=pay0"
+                "format=GST_FORMAT_TIME ! queue silent=true  max-size-bytes=10485760 ! h265parse ! rtph265pay name=pay0"
             }
             _ => "! fakesink",
         };
