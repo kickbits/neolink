@@ -105,7 +105,7 @@ pub fn adpcm_to_pcm(bytes: &[u8]) -> Vec<u8> {
 
     // Get predictor state from block header using DVI 4 format.
     let step_output_bytes = &bytes[4..6];
-    let mut last_output = u16::from_le_bytes(
+    let mut last_output = i16::from_le_bytes(
         step_output_bytes
             .try_into()
             .expect("slice with incorrect length"),
