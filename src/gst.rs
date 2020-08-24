@@ -88,7 +88,7 @@ impl GstOutputs {
             // We set the caps for the pcm here to avoid the parser entirly.
             // This is required as the rawaudioparse in gstramer seems to be bugged for live sources
             // See https://gitlab.freedesktop.org/gstreamer/gst-plugins-base/-/issues/353
-            Some(StreamFormat::ADPCM) => "caps=audio/x-raw,format=S16LE,layout=interleaved,channels=1,rate=8000,channel-mask=(bitmask)0x0  ! queue silent=true max-size-bytes=10485760  min-threshold-bytes=1024 ! audioconvert ! rtpL16pay name=pay1", // We decode as oki adpcm to raw before the appsink then convert to BigEndian for the rtp transport
+            Some(StreamFormat::ADPCM) => "caps=audio/x-adpcm,layout=dvi,block_align=244,channels=1,rate=8000  ! queue silent=true max-size-bytes=10485760  min-threshold-bytes=1024 ! adpcmdec ! audioconvert ! rtpL16pay name=pay1",
             Some(StreamFormat::AAC) => "! queue silent=true max-size-bytes=10485760 min-threshold-bytes=1024 ! aacparse ! rtpmp4apay name=pay1",
             _ => "! fakesink",
         };

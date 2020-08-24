@@ -3,7 +3,6 @@ use self::media_packet::{MediaDataKind, MediaDataSubscriber};
 use crate::bc;
 use crate::bc::{model::*, xml::*};
 use crate::gst::GstOutputs;
-use adpcm::adpcm_to_pcm;
 use err_derive::Error;
 use log::*;
 use md5;
@@ -13,7 +12,6 @@ use std::time::Duration;
 
 use Md5Trunc::*;
 
-mod adpcm;
 mod connection;
 mod media_packet;
 mod time;
@@ -292,8 +290,8 @@ impl BcCamera {
                     let media_format = binary_data.media_format();
                     data_outs.set_format(media_format);
                     let adpcm = binary_data.body();
-                    let pcm = adpcm_to_pcm(adpcm);
-                    data_outs.audsrc.write_all(&pcm)?;
+                    // Trim the HISilicon header then we can just parse as DVI4 adpcm
+                    data_outs.audsrc.write_all(&adpcm[4..])?;
                 }
                 _ => {}
             };
