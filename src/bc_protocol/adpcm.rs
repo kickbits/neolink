@@ -3,17 +3,16 @@
 */
 use std::convert::TryInto;
 
-pub struct AdpcmSetup {
+struct AdpcmSetup {
     max_step_index: usize,
     steps: Vec<usize>,
     max_sample_size: isize,
     changes: Vec<isize>,
-    last_output: Option<isize>,
-    step_index: Option<isize>,
 }
 
 impl AdpcmSetup {
-    pub fn new_oki() -> Self {
+    // Unused, originally we thought BC might be using OKI but it is actually DVI4
+    fn new_oki() -> Self {
         Self {
             max_step_index: 48,
             steps: vec![
@@ -23,29 +22,23 @@ impl AdpcmSetup {
             ],
             changes: vec![-1, -1, -1, -1, 2, 4, 6, 8, -1, -1, -1, -1, 2, 4, 6, 8],
             max_sample_size: 2048,
-            last_output: None,
-            step_index: None,
         }
     }
 
-    pub fn new_ima() -> Self {
+    // This is IMA format, but it is the same as DVI4 format except in the block header
+    fn new_ima() -> Self {
         Self {
             max_step_index: 88,
             steps: vec![
-                7, 8, 9, 10, 11, 12, 13, 14, 16, 17,
-                19, 21, 23, 25, 28, 31, 34, 37, 41, 45,
-                50, 55, 60, 66, 73, 80, 88, 97, 107, 118,
-                130, 143, 157, 173, 190, 209, 230, 253, 279, 307,
-                337, 371, 408, 449, 494, 544, 598, 658, 724, 796,
-                876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066,
-                2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428, 4871, 5358,
-                5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899,
-                15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767
+                7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50,
+                55, 60, 66, 73, 80, 88, 97, 107, 118, 130, 143, 157, 173, 190, 209, 230, 253, 279,
+                307, 337, 371, 408, 449, 494, 544, 598, 658, 724, 796, 876, 963, 1060, 1166, 1282,
+                1411, 1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428, 4871,
+                5358, 5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899, 15289, 16818,
+                18500, 20350, 22385, 24623, 27086, 29794, 32767,
             ],
             changes: vec![-1, -1, -1, -1, 2, 4, 6, 8, -1, -1, -1, -1, 2, 4, 6, 8],
             max_sample_size: 32767,
-            last_output: None,
-            step_index: None,
         }
     }
 }
@@ -87,7 +80,9 @@ impl Nibble {
     }
 }
 
-pub fn adpcm_to_pcm(bytes: &[u8], context: &mut AdpcmSetup) -> Vec<u8> {
+pub fn adpcm_to_pcm(bytes: &[u8]) -> Vec<u8> {
+    let context = AdpcmSetup::new_ima();
+
     let mut result: Vec<u8> = vec![]; // Stores the PCM byte array
 
     // ADPCM is not really a streamable format
@@ -108,34 +103,19 @@ pub fn adpcm_to_pcm(bytes: &[u8], context: &mut AdpcmSetup) -> Vec<u8> {
         &magic
     );
 
-    // However although the step index is accurate in the block header the last_output is not
-    // This is because the camera uses an approximate encoder. If you swap USE_APPOXIMATE to true
-    // below then the results of each output will match the last_output that
-    // bc reports in its header. However this is very low quality and sounds like static.
-    const USE_APPROXIMATE: bool = false;
-
-    let mut step_index = match context.step_index{
-        Some(value) => value,
-        None => { // Read from block header
-            let step_index_bytes = &bytes[6..8];
-            u16::from_le_bytes(
-                step_index_bytes
-                    .try_into()
-                    .expect("slice with incorrect length"),
-            ) as isize
-        }
-    };
-    let mut last_output = match context.last_output{
-        Some(value) => value,
-        None => { // Read from block header only do if have to as block header is approximate value (causes static if used too often)
-            let step_index_bytes = &bytes[4..6];
-            u16::from_le_bytes(
-                step_index_bytes
-                    .try_into()
-                    .expect("slice with incorrect length"),
-            ) as isize
-        }
-    };
+    // Get predictor state from block header using DVI 4 format.
+    let step_output_bytes = &bytes[4..6];
+    let mut last_output = u16::from_le_bytes(
+        step_output_bytes
+            .try_into()
+            .expect("slice with incorrect length"),
+    ) as isize;
+    let step_index_bytes = &bytes[6..8];
+    let mut step_index = u16::from_le_bytes(
+        step_index_bytes
+            .try_into()
+            .expect("slice with incorrect length"),
+    ) as isize;
 
     // To avoid casting to u8 <-> u16 <-> u32 and back all the time I just do all maths in u/isize
     // This gives enough headroom to do all calculations without overflow because oki puts artifical
@@ -150,7 +130,6 @@ pub fn adpcm_to_pcm(bytes: &[u8], context: &mut AdpcmSetup) -> Vec<u8> {
         for nibble in &nibbles {
             //nibble.dump();
             let unibble = nibble.unsigned();
-            let inibble = nibble.signed();
 
             // Specifications say: Clamp it in max index range 0..context.max_step_index
             step_index = match step_index {
@@ -165,41 +144,47 @@ pub fn adpcm_to_pcm(bytes: &[u8], context: &mut AdpcmSetup) -> Vec<u8> {
             step = context.steps[step_index as usize];
 
             let raw_sample;
-            if ! USE_APPROXIMATE {
-                // Calculate the delta (which is really what adpcm is all about)
-                // Adaptive **Differential** PCM
-                // Differential: Becuase its all about the difference (gradient)
-                let diff = (step as isize) * (inibble) / 2 + (step as isize) / 8;
+            /* == Non approxiate version ===
+            // This is the full maths version
+            // We don't use this one as we need to match the way the encoder
+            // works if we want to use the state stored in the header.
+            // I have Left it here as it is easier to understand then the bit shift version below
+            let inibble = nibble.signed();
 
-                // Eulers approxiation
-                // Sample = Previous_Sample + difference*step_size
-                raw_sample = last_output + diff;
+            // Calculate the delta (which is really what adpcm is all about)
+            // Adaptive **Differential** PCM
+            // Differential: Becuase its all about the difference (gradient)
+            let diff = (step as isize) * (inibble) / 2 + (step as isize) / 8;
+
+            // Eulers approxiation
+            // Sample = Previous_Sample + difference*step_size
+            raw_sample = last_output + diff;
+            */
+
+            // === Approximate version ==
+            // Approximate form uses bit shift operators.
+            // This is a legacy of the days when mult/divides were expensive
+            // It is also the format used on low end CPUs like cameras
+            let mut diff = step >> 3;
+            if (unibble & 0b0100) == 0b0100 {
+                diff += step;
+            }
+            if (unibble & 0b0010) == 0b0010 {
+                diff += step >> 1;
+            }
+            if (unibble & 0b0001) == 0b0001 {
+                diff += step >> 2;
+            }
+            // Sign test
+            if (unibble & 0b1000) == 0b1000 {
+                raw_sample = last_output - (diff as isize);
             } else {
-                // Approximate form uses bit shift operators.
-                // This is a legacy of the days when mult/divides were expensive
-                // It is also the format used on low end CPUs like cameras
-                let mut diff = step >> 3;
-                if (unibble & 0b0100) == 0b0100 {
-                    diff += step;
-                }
-                if (unibble & 0b0010) == 0b0010 {
-                    diff += step >> 1;
-                }
-                if (unibble & 0b0001) == 0b0001 {
-                    diff += step >> 2;
-                }
-                // Sign test
-                if (unibble & 0b1000) == 0b1000  {
-                    raw_sample = last_output - (diff as isize);
-                 }
-                else {
-                    raw_sample = last_output + (diff as isize);
-                }
+                raw_sample = last_output + (diff as isize);
             }
 
             // Specifications say: Clamp it in max sample range -context.max_sample_size..context.max_sample_size
             let sample = match raw_sample {
-                value if value > context.max_sample_size -1 => context.max_sample_size -1,
+                value if value > context.max_sample_size - 1 => context.max_sample_size - 1,
                 value if value < -context.max_sample_size => -context.max_sample_size,
                 value => value,
             };
@@ -221,9 +206,5 @@ pub fn adpcm_to_pcm(bytes: &[u8], context: &mut AdpcmSetup) -> Vec<u8> {
             last_output = sample;
         }
     }
-
-    context.step_index = Some(step_index);
-    context.last_output = Some(last_output);
-
     result
 }

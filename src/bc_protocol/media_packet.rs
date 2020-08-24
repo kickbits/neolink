@@ -271,9 +271,7 @@ impl<'a> MediaDataSubscriber<'a> {
         }
     }
 
-    pub fn next_media_packet(
-        &mut self,
-    ) -> std::result::Result<MediaData, Error> {
+    pub fn next_media_packet(&mut self) -> std::result::Result<MediaData, Error> {
         // Find the first packet (does nothing if already at one)
         self.advance_to_media_packet()?;
 

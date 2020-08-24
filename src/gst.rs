@@ -93,14 +93,17 @@ impl GstOutputs {
             _ => "! fakesink",
         };
 
-        self.factory.set_launch(&vec![
+        self.factory.set_launch(
+            &vec![
             "( ",
             "appsrc name=vidsrc is-live=true block=true emit-signals=false max-bytes=52428800 do-timestamp=true format=GST_FORMAT_TIME", // 50MB max size so that it won't grow to infinite if the queue blocks
             launch_vid,
             "appsrc name=audsrc is-live=true block=true emit-signals=false max-bytes=52428800 do-timestamp=true format=GST_FORMAT_TIME", // 50MB max size so that it won't grow to infinite if the queue blocks
             launch_aud,
             ")"
-        ].join(" "));
+        ]
+            .join(" "),
+        );
     }
 }
 
@@ -272,13 +275,7 @@ mod maybe_app_src {
         /// into the AppSrc when write() is called.
         pub fn new_with_tx() -> (Self, SyncSender<AppSrc>) {
             let (tx, rx) = sync_channel(3); // The sender should not send very often
-            (
-                MaybeAppSrc {
-                    rx,
-                    app_src: None,
-                },
-                tx,
-            )
+            (MaybeAppSrc { rx, app_src: None }, tx)
         }
 
         /// Flushes data to Gstreamer on a problem communicating with the underlying video source.
