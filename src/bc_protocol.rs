@@ -3,20 +3,19 @@ use self::media_packet::{MediaDataKind, MediaDataSubscriber};
 pub use self::motion::{MotionDataSubscriber, MotionStatus};
 use crate::bc;
 use crate::bc::{model::*, xml::*};
+use crossbeam_channel::Sender;
 use err_derive::Error;
 use log::*;
 use std::io::Write;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::time::Duration;
-use crossbeam_channel::Sender;
-
 
 use Md5Trunc::*;
 
 mod connection;
 mod media_packet;
-mod time;
 mod motion;
+mod time;
 
 pub struct BcCamera {
     address: SocketAddr,
@@ -191,7 +190,7 @@ impl BcCamera {
         match modern_reply.body {
             BcBody::ModernMsg(ModernMsg {
                 xml:
-                    Some(TopBcXmls::BcXml(BcXml{
+                    Some(TopBcXmls::BcXml(BcXml {
                         device_info: Some(info),
                         ..
                     })),
@@ -296,16 +295,11 @@ impl BcCamera {
         }
     }
 
-    pub fn start_motion(
-        &self,
-        data_out: &Sender<MotionStatus>,
-        channel_id: u32,
-    ) -> Result<Never> {
+    pub fn start_motion(&self, data_out: &Sender<MotionStatus>, channel_id: u32) -> Result<Never> {
         let connection = self
             .connection
             .as_ref()
             .expect("Must be connected to listen to motion detected");
-
 
         let sub_motion = connection.subscribe(MSG_ID_MOTION)?;
         let motiondata_sub = MotionDataSubscriber::from_bc_sub(&sub_motion, channel_id);

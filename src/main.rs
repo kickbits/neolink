@@ -1,10 +1,11 @@
+use crate::mqtt::{MotionWriter, MQTT};
+use crossbeam_channel::Sender;
 use env_logger::Env;
 use err_derive::Error;
 use gio::TlsAuthenticationMode;
 use log::*;
 use neolink::bc_protocol::BcCamera;
 use neolink::gst::{MaybeAppSrc, RtspServer, StreamFormat};
-use crate::mqtt::{MQTT, MotionWriter};
 use neolink::Never;
 use std::collections::HashSet;
 use std::fs;
@@ -12,7 +13,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use structopt::StructOpt;
 use validator::Validate;
-use crossbeam_channel::Sender;
 
 mod cmdline;
 mod config;
@@ -98,13 +98,17 @@ fn main() -> Result<(), Error> {
                 let main_camera = arc_cam.clone();
                 let main_mqtt = arc_mqtt.clone();
                 let (motion_write, motion_sender) = MotionWriter::new_with_tx(&main_camera.name);
-                s.spawn(move |_| {
-                    loop {
-                        motion_write.poll_status(&*main_mqtt);
-                    }
+                s.spawn(move |_| loop {
+                    motion_write.poll_status(&*main_mqtt);
                 });
                 s.spawn(move |_| {
-                    camera_loop(&*main_camera, "mainStream", &mut output, &Some(motion_sender), true)
+                    camera_loop(
+                        &*main_camera,
+                        "mainStream",
+                        &mut output,
+                        &Some(motion_sender),
+                        true,
+                    )
                 });
             }
             if ["both", "subStream"].iter().any(|&e| e == arc_cam.stream) {
@@ -117,18 +121,23 @@ fn main() -> Result<(), Error> {
                 let sub_mqtt = arc_mqtt.clone();
                 let motion_sender;
                 if manage {
-                    let (motion_write, motion_sender_i) = MotionWriter::new_with_tx(&*sub_camera.name);
-                    s.spawn(move |_| {
-                        loop {
-                            motion_write.poll_status(&*sub_mqtt);
-                        }
+                    let (motion_write, motion_sender_i) =
+                        MotionWriter::new_with_tx(&*sub_camera.name);
+                    s.spawn(move |_| loop {
+                        motion_write.poll_status(&*sub_mqtt);
                     });
                     motion_sender = Some(motion_sender_i);
                 } else {
                     motion_sender = None;
                 }
                 s.spawn(move |_| {
-                    camera_loop(&*sub_camera, "subStream", &mut output, &motion_sender, manage)
+                    camera_loop(
+                        &*sub_camera,
+                        "subStream",
+                        &mut output,
+                        &motion_sender,
+                        manage,
+                    )
                 });
             }
         }
@@ -152,7 +161,8 @@ fn camera_loop(
     let mut current_backoff = min_backoff;
 
     loop {
-        let cam_err = camera_main(camera_config, stream_name, output, motion_output, manage).unwrap_err();
+        let cam_err =
+            camera_main(camera_config, stream_name, output, motion_output, manage).unwrap_err();
         output.on_stream_error();
         // Authentication failures are permanent; we retry everything else
         if cam_err.connected {

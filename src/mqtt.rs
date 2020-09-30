@@ -1,9 +1,9 @@
+use super::MotionStatus;
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use crossbeam_utils::thread::Scope;
 use librumqttd::{Broker, Config, LinkTx};
 use std::sync::Mutex;
 use tokio::task;
-use crossbeam_channel::{Sender, Receiver, unbounded};
-use super::MotionStatus;
 
 use log::*;
 
@@ -78,10 +78,9 @@ impl MQTT {
     }
 }
 
-
 pub struct MotionWriter {
     topic: String,
-    receiver: Receiver<MotionStatus>
+    receiver: Receiver<MotionStatus>,
 }
 
 impl<'a> MotionWriter {
@@ -97,12 +96,10 @@ impl<'a> MotionWriter {
     pub fn poll_status(&self, mqtt: &MQTT) {
         let data = self.receiver.recv().expect("We should get something");
         match data {
-            MotionStatus::MotionStart =>  {
+            MotionStatus::MotionStart => {
                 mqtt.send_message(&self.topic, "on");
-            },
-            MotionStatus::MotionStop => {
-                mqtt.send_message(&self.topic, "off")
             }
+            MotionStatus::MotionStop => mqtt.send_message(&self.topic, "off"),
             _ => {}
         }
     }

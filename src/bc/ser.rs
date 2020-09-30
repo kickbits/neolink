@@ -61,12 +61,8 @@ impl Bc {
 
 fn bc_xml<W: Write>(enc_offset: u32, xml: &TopBcXmls) -> impl SerializeFn<W> {
     let xml_bytes = match xml {
-        TopBcXmls::BcXml(x) => {
-            x.serialize(vec![]).unwrap()
-        },
-        TopBcXmls::Extension(x) => {
-            x.serialize(vec![]).unwrap()
-        },
+        TopBcXmls::BcXml(x) => x.serialize(vec![]).unwrap(),
+        TopBcXmls::Extension(x) => x.serialize(vec![]).unwrap(),
     };
     let enc_bytes = xml_crypto::crypt(enc_offset, &xml_bytes);
     slice(enc_bytes)

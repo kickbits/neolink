@@ -1,5 +1,5 @@
 use super::model::*;
-use super::xml::{TopBcXmls, Extension};
+use super::xml::{Extension, TopBcXmls};
 use super::xml_crypto;
 use err_derive::Error;
 use log::*;
@@ -151,11 +151,12 @@ fn bc_modern_msg<'a, 'b>(
         // If this is the first message containing binary, the Extension message puts the message
         // ID into binary mode, then the first binary is sent after the XML.  All remaining
         // messages for that ID are pure binary.
-        match parsed {
-            TopBcXmls::Extension(Extension { binary_data: Some(1), .. }) => {
-                in_bin_mode = true;
-            }
-            _ => {}
+        if let TopBcXmls::Extension(Extension {
+            binary_data: Some(1),
+            ..
+        }) = parsed
+        {
+            in_bin_mode = true;
         }
 
         xml = Some(parsed)
