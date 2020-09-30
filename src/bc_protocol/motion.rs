@@ -31,7 +31,7 @@ impl<'a> MotionDataSubscriber<'a> {
         let msg_motion = self.bc_sub.rx.recv_timeout(RX_TIMEOUT);
         if let Ok(msg_motion) = msg_motion {
             debug!("GotMotion");
-            if let BcBody::ModernMsg(ModernMsg { xml: Some(xml), .. }) = msg_motion.body {
+            if let BcBody::ModernMsg(ModernMsg { xml: Some(TopBcXmls::BcXml(xml)), .. }) = msg_motion.body {
                 if let BcXml {
                     alarm_event_list: Some(alarm_event_list),
                     ..

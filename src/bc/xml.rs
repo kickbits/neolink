@@ -11,16 +11,17 @@ use indoc::indoc;
 
 #[derive(PartialEq, Eq, Debug, YaDeserialize)]
 #[yaserde(flatten)]
-pub(super) enum AllTopXmls {
+pub enum TopBcXmls {
     #[yaserde(rename = "body")]
     BcXml(BcXml),
+    #[yaserde(rename = "Extension")]
     Extension(Extension),
 }
 
 // Required for YaDeserialize
-impl Default for AllTopXmls {
+impl Default for TopBcXmls {
     fn default() -> Self {
-        AllTopXmls::BcXml(Default::default())
+        TopBcXmls::BcXml(Default::default())
     }
 }
 
@@ -45,13 +46,22 @@ pub struct BcXml {
     pub alarm_event_list: Option<AlarmEventList>,
 }
 
-impl AllTopXmls {
+impl TopBcXmls {
     pub fn try_parse(s: impl Read) -> Result<Self, String> {
         yaserde::de::from_reader(s)
     }
 }
 
 impl BcXml {
+    pub fn try_parse(s: impl Read) -> Result<Self, String> {
+        yaserde::de::from_reader(s)
+    }
+    pub fn serialize<W: Write>(&self, w: W) -> Result<W, String> {
+        yaserde::ser::serialize_with_writer(self, w, &Config::default())
+    }
+}
+
+impl Extension {
     pub fn try_parse(s: impl Read) -> Result<Self, String> {
         yaserde::de::from_reader(s)
     }
@@ -128,7 +138,10 @@ pub struct Preview {
 #[derive(PartialEq, Eq, Default, Debug, YaDeserialize, YaSerialize)]
 pub struct Extension {
     #[yaserde(rename = "binaryData")]
-    pub binary_data: u32,
+    pub binary_data: Option<u32>,
+    #[yaserde(rename = "userName")]
+    pub user_name: Option<String>,
+    pub token: Option<String>,
 }
 
 #[derive(PartialEq, Eq, Default, Debug, YaDeserialize, YaSerialize)]
@@ -205,9 +218,9 @@ fn test_encryption_deser() {
     assert_eq!(enc.nonce, "9E6D1FCB9E69846D");
     assert_eq!(enc.type_, "md5");
 
-    let t = AllTopXmls::try_parse(sample.as_bytes()).unwrap();
+    let t = TopBcXmls::try_parse(sample.as_bytes()).unwrap();
     match t {
-        AllTopXmls::BcXml(top_b) if top_b == b => assert!(true),
+        TopBcXmls::BcXml(top_b) if top_b == b => assert!(true),
         _ => assert!(false),
     }
 }
@@ -342,9 +355,9 @@ fn test_binary_deser() {
         </Extension>
     "#
     );
-    let b = AllTopXmls::try_parse(sample.as_bytes()).unwrap();
+    let b = TopBcXmls::try_parse(sample.as_bytes()).unwrap();
     match b {
-        AllTopXmls::Extension(Extension { binary_data: 1 }) => assert!(true),
+        TopBcXmls::Extension(Extension { binary_data: 1 }) => assert!(true),
         _ => assert!(false),
     }
 }

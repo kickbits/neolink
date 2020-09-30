@@ -136,10 +136,10 @@ impl BcCamera {
         match legacy_reply.body {
             BcBody::ModernMsg(ModernMsg {
                 xml:
-                    Some(BcXml {
+                    Some(TopBcXmls::BcXml(BcXml {
                         encryption: Some(encryption),
                         ..
-                    }),
+                    })),
                 ..
             }) => {
                 nonce = encryption.nonce;
@@ -191,10 +191,10 @@ impl BcCamera {
         match modern_reply.body {
             BcBody::ModernMsg(ModernMsg {
                 xml:
-                    Some(BcXml {
+                    Some(TopBcXmls::BcXml(BcXml{
                         device_info: Some(info),
                         ..
-                    }),
+                    })),
                 ..
             }) => {
                 // Login succeeded!

@@ -1,4 +1,4 @@
-use super::xml::BcXml;
+use super::xml::{BcXml, TopBcXmls};
 use std::collections::HashSet;
 
 pub(super) const MAGIC_HEADER: u32 = 0xabcdef0;
@@ -27,7 +27,7 @@ pub enum BcBody {
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct ModernMsg {
-    pub xml: Option<BcXml>,
+    pub xml: Option<TopBcXmls>,
     pub binary: Option<Vec<u8>>,
 }
 
@@ -77,7 +77,7 @@ impl Bc {
         Bc {
             meta,
             body: BcBody::ModernMsg(ModernMsg {
-                xml: Some(xml),
+                xml: Some(TopBcXmls::BcXml(xml)),
                 binary: None,
             }),
         }

@@ -24,7 +24,7 @@ impl BcCamera {
 
         if let BcBody::ModernMsg(ModernMsg {
             xml:
-                Some(BcXml {
+                Some(TopBcXmls::BcXml(BcXml {
                     system_general:
                         Some(SystemGeneral {
                             time_zone: Some(time_zone),
@@ -37,7 +37,7 @@ impl BcCamera {
                             ..
                         }),
                     ..
-                }),
+                })),
             ..
         }) = msg.body
         {

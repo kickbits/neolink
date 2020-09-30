@@ -1,5 +1,5 @@
 use super::model::*;
-use super::xml::{AllTopXmls, Extension};
+use super::xml::{TopBcXmls, Extension};
 use super::xml_crypto;
 use err_derive::Error;
 use log::*;
@@ -145,20 +145,20 @@ fn bc_modern_msg<'a, 'b>(
     if end_of_xml > 0 {
         // Apply the XML parse function, but throw away the reference to decrypted in the Ok and
         // Err case. This error-error-error thing is the same idiom Nom uses internally.
-        let parsed = AllTopXmls::try_parse(processed_body_buf)
+        let parsed = TopBcXmls::try_parse(processed_body_buf)
             .map_err(|_| Err::Error(make_error(buf, ErrorKind::MapRes)))?;
 
         // If this is the first message containing binary, the Extension message puts the message
         // ID into binary mode, then the first binary is sent after the XML.  All remaining
         // messages for that ID are pure binary.
         match parsed {
-            AllTopXmls::BcXml(x) => {
-                xml = Some(x);
-            }
-            AllTopXmls::Extension(Extension { binary_data: _ }) => {
+            TopBcXmls::Extension(Extension { binary_data: Some(1), .. }) => {
                 in_bin_mode = true;
             }
+            _ => {}
         }
+
+        xml = Some(parsed)
     }
 
     // If we are in binary mode, extract it

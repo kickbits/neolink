@@ -1,5 +1,5 @@
 use super::model::*;
-use super::xml::BcXml;
+use super::xml::TopBcXmls;
 use super::xml_crypto;
 use cookie_factory::bytes::*;
 use cookie_factory::sequence::tuple;
@@ -59,8 +59,15 @@ impl Bc {
     }
 }
 
-fn bc_xml<W: Write>(enc_offset: u32, xml: &BcXml) -> impl SerializeFn<W> {
-    let xml_bytes = xml.serialize(vec![]).unwrap();
+fn bc_xml<W: Write>(enc_offset: u32, xml: &TopBcXmls) -> impl SerializeFn<W> {
+    let xml_bytes = match xml {
+        TopBcXmls::BcXml(x) => {
+            x.serialize(vec![]).unwrap()
+        },
+        TopBcXmls::Extension(x) => {
+            x.serialize(vec![]).unwrap()
+        },
+    };
     let enc_bytes = xml_crypto::crypt(enc_offset, &xml_bytes);
     slice(enc_bytes)
 }
